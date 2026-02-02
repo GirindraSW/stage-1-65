@@ -1,48 +1,73 @@
 
+
+
 //get element
-const biodata = document.getElementById("biodata");
-const userList = document.getElementById("userList");
+const pform = document.getElementById("pform");
+const projectList = document.getElementById("projectList");
 
 //state (temporarry save file)
-let users = [];
+let projects = [];
+let projectId = 1;
 
 // submit form
-biodata.addEventListener("submit", function (e){
+pform.addEventListener("submit", function (e){
     e.preventDefault();
 
-    let firstName = document.getElementById("fname").value;
-    let lastName = document.getElementById("lname").value;
+    let projectName  = document.getElementById("pname").value;
+    let projectDesc  = document.getElementById("pdesc").value;
+    let projectStart = document.getElementById("pstart").value;
+    let projectEnd   = document.getElementById("pend").value;
+    const checkedBoxes = document.querySelectorAll('input[name="tech"]:checked');
+    let projectTech  = Array.from(checkedBoxes).map(box => box.value);
 
-    const user = {firstName, lastName}
+    //let projectTech  = Array.from(checkedBoxes).map(function(box) {
+    // return box.value;
+    // });
 
-    users.push(user);
-    console.log(users);
+    const project = {projectName, projectStart, projectEnd, projectDesc, projectTech}
+
+    projects.push(project);
+    console.log(projects);
+
+
 
     changeElement();
-    renderUsers();
+    renderProjects();
+
+    //reset form
+    pform.reset();
 })
 
-// notif/header about project  submited
+// notif header about project  submited
 function changeElement(){
-    document.getElementById("header-user").innerHTML = 
+    document.getElementById("header-project").innerHTML = 
     `<p> project details submited</p>`
 }
 
-function renderUsers() {
-    userList.innerHTML = "";
+function renderProjects() {
+    projectList.innerHTML = "";
 
-    for (let i = 0; i < users.length; i++) {
-        userList.innerHTML += `
+    for (let i = 0; i < projects.length; i++) {
+        let techText = projects[i].projectTech.join(", ");
+        if (techText === "") techText = "No technologies selected";
+
+        projectList.innerHTML += `
             <div class="col-md-4">
-                <div class="card shadow-sm">
+                <div class="card shadow-sm mb-4">
                     <div class="card-body">
-                        <h5 class="card-title">
-                            ${users[i].firstName} ${users[i].lastName}
-                        </h5>
-                        <p class="card-text text-muted">
-                            Project submitted
+                        <h4 class="card-title">
+                            ${projects[i].projectName}
+                        </h4>
+                        <p class="fs-6 text-muted">
+                            ${projects[i].projectStart} - ${projects[i].projectEnd}
                         </p>
-                    </div>
+                        <p class="fs-5 pt-2">
+                             ${projects[i].projectDesc}
+                        </p>
+                        <p class="text-primary fw-bold">
+                            Technologies: ${techText}
+                        </p>
+                        </div>
                 </div>
             </div>
         `;
