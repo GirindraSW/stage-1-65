@@ -1,13 +1,20 @@
-
-
-
 //get element
 const pform = document.getElementById("pform");
 const projectList = document.getElementById("projectList");
 
-//state (temporarry save file)
-let projects = [];
+//state (load local storage)
+let projects = JSON.parse(localStorage.getItem("projects"));
 let projectId = 1;
+
+//logic to continue Id's number, so no replacement. (ID + 1)
+if (projects.length > 0) {
+    projectId = [projects.length - 1].id + 1;
+}
+
+//if there were saved file (Documents Object Models)
+document.addEventListener("DOMContentLoaded", () => {
+    renderProjects();
+});
 
 // submit form
 pform.addEventListener("submit", function (e){
@@ -24,9 +31,19 @@ pform.addEventListener("submit", function (e){
     // return box.value;
     // });
 
-    const project = {projectName, projectStart, projectEnd, projectDesc, projectTech}
+    const project = {
+        id: projectId,
+        projectName, 
+        projectStart, 
+        projectEnd, 
+        projectDesc, 
+        projectTech
+    }
 
     projects.push(project);
+
+    saveProjects();
+
     console.log(projects);
 
 
@@ -36,7 +53,13 @@ pform.addEventListener("submit", function (e){
 
     //reset form
     pform.reset();
+
+    projectId++
 })
+
+function saveProjects(){
+    localStorage.setItem("projects",JSON.stringify(projects));
+}
 
 // notif header about project  submited
 function changeElement(){
@@ -53,7 +76,10 @@ function renderProjects() {
 
         projectList.innerHTML += `
             <div class="col-md-4">
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm mb-4 clickable-card" 
+                     style="cursor: pointer; transition: transform 0.2s;"
+                     onclick="viewDetails(${projects[i].id})">
+
                     <div class="card-body">
                         <h4 class="card-title">
                             ${projects[i].projectName}
@@ -74,16 +100,6 @@ function renderProjects() {
     }
 }
 
-// function renderUsers(){
-//     userList.innerHTML = "";
-
-//     for (let i = 0; i < users.length; i++){
-//         userList.innerHTML += `
-//          <div>
-//         <h5>${users[i].firstName}</h5>
-//         <h5>${users[i].lastName}</h5>
-//         </div>
-//         `
-        
-//     }
-// }
+function viewDetails(id) {
+    window.location.href = `project-details.html?id=${id}`;
+}
