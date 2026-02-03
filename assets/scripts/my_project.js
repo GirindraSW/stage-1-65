@@ -103,3 +103,26 @@ function renderProjects() {
 function viewDetails(id) {
     window.location.href = `project-details.html?id=${id}`;
 }
+
+// filtering
+const sortFilter = document.getElementById("sortFilter");
+
+sortFilter.addEventListener("change", function() {
+    const sortType = this.value; //az,za,newest
+
+    if (sortType === "az") {
+        // Sort A-Z (Ascending)
+        projects.sort((a, b) => {
+            return a.projectName.toLowerCase().localeCompare(b.projectName.toLowerCase());
+        });
+    } else if (sortType === "za") {
+        // Sort Z-A (Descending)
+        projects.sort((a, b) => {
+            return b.projectName.toLowerCase().localeCompare(a.projectName.toLowerCase());
+        });
+    } else {
+        // Default Sort (Newest/Normally)
+        projects.sort((a, b) => b.id - a.id);
+    }
+    renderProjects();
+});

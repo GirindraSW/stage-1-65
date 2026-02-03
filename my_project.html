@@ -132,11 +132,22 @@
     </div>
     
     <div class="container-fluid">
-        <div class="row">
-            <h3 class="text-center my-5 fw-bolder">My Project</h3>
+        <div class="row justify-content-center mb-4">
+            <div class="col-auto text-center">
+                <h3 class="fw-bolder m-0 d-inline-block me-3">My Project</h3>
+                
+                <!-- Filter Dropdown -->
+                <select id="sortFilter" class="form-select d-inline-block w-auto shadow-sm bg-info-subtle">
+                    <option value="newest">Sort by: Newest</option>
+                    <option value="az">Sort by: A - Z</option>
+                    <option value="za">Sort by: Z - A</option>
+                </select>
+            </div>
+        </div>
 
-            <div id="projectList" class="row g-3 mt-2 bg-warning">
-                <!-- card akan muncul di sini -->
+        <!-- Project List Container -->
+        <div class="row">
+            <div id="projectList" class="row g-3 mt-2">
             </div>
         </div>
     </div>
