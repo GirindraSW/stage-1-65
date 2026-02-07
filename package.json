@@ -1,0 +1,25 @@
+{
+  "name": "batch-65",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GirindraSW/stage-1-65.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/GirindraSW/stage-1-65/issues"
+  },
+  "homepage": "https://github.com/GirindraSW/stage-1-65#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "hbs": "^4.2.0"
+  }
+}
