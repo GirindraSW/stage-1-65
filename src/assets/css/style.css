@@ -1,0 +1,15 @@
+.social-icons .btn{
+    width: 32px;
+    height: 32px;
+}
+
+.custom-upload {
+  overflow: hidden;
+  border-radius: .375rem;
+}
+
+/* .add-project {
+    .p{
+        text-align: left;
+    }
+} */
