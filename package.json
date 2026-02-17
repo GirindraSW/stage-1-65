@@ -2,9 +2,10 @@
   "name": "batch-65",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "Index.js",
   "scripts": {
-    "start": "nodemon index.js"
+    "start": "node Index.js",
+    "dev": "nodemon Index.js"
   },
   "repository": {
     "type": "git",
@@ -19,7 +20,13 @@
   },
   "homepage": "https://github.com/GirindraSW/stage-1-65#readme",
   "dependencies": {
+    "dotenv": "^17.2.4",
     "express": "^5.2.1",
-    "hbs": "^4.2.0"
+    "express-handlebars": "^8.0.6",
+    "hbs": "^4.2.0",
+    "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
   }
 }

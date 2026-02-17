@@ -1,15 +1,77 @@
-.social-icons .btn{
-    width: 32px;
-    height: 32px;
+body {
+    margin: 0;
+    padding: 0;
 }
 
-.custom-upload {
-  overflow: hidden;
-  border-radius: .375rem;
+/* Global rules used by other pages */
+.form-control:focus {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    border: none;
 }
 
-/* .add-project {
-    .p{
-        text-align: left;
+.form-control {
+    background-color: #ffffff;
+}
+
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.input-group.shadow-sm {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    overflow: hidden;
+}
+
+.input-group:focus-within {
+    outline: 2px solid rgba(0, 0, 0, 0.05);
+}
+
+.input-group-text[for="inputImage"] {
+    font-family: sans-serif;
+    font-size: 1.1rem;
+    color: #888 !important;
+}
+
+/* My Project page */
+.myproject-form-wrap {
+    max-width: 740px;
+    margin: 0 auto;
+}
+
+.myproject-page .form-check-input {
+    width: 1.3rem;
+    height: 1.3rem;
+    border-color: #d8d8d8;
+    margin-top: 0.15rem;
+}
+
+.myproject-upload {
+    min-height: 52px;
+}
+
+.myproject-upload .input-group-text {
+    cursor: pointer;
+}
+
+.myproject-upload .form-control {
+    min-height: 52px;
+}
+
+.myproject-card-image {
+    height: 215px;
+    object-fit: cover;
+}
+
+.myproject-desc {
+    min-height: 84px;
+}
+
+@media (max-width: 768px) {
+    .myproject-desc {
+        min-height: auto;
     }
-} */
+}
