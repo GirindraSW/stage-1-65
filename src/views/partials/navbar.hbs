@@ -1,6 +1,6 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-warning mb-0 shadow-sm">
   <div class="container">
-    <a class="navbar-brand" href="/Index"><img src="assets/images/brandwhite.png" alt="DumbWays.ID" width="30" height="24"></a>
+    <a class="navbar-brand" href="/home"><img src="/assets/images/brandwhite.png" alt="DumbWays.ID" width="30" height="24"></a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
       <span class="navbar-toggler-icon"></span>
@@ -20,6 +20,17 @@
           <a class="nav-link {{#ifEquals active 'contact'}}active fw-bold{{/ifEquals}}" href="/contact">Contact Me</a>
         </li>
       </ul>
+      {{#if currentUser}}
+        <span class="navbar-text me-3 small">{{currentUser.email}}</span>
+        <form action="/logout" method="POST" class="d-inline">
+          <button type="submit" class="btn btn-dark btn-sm">Logout</button>
+        </form>
+      {{else}}
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-dark btn-sm {{#ifEquals active 'login'}}active{{/ifEquals}}" href="/login">Login</a>
+          <a class="btn btn-dark btn-sm {{#ifEquals active 'register'}}active{{/ifEquals}}" href="/register">Register</a>
+        </div>
+      {{/if}}
     </div>
   </div>
 </nav>

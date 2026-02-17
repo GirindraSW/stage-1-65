@@ -5,7 +5,8 @@ dotenv.config();
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Pool } from "pg"; //there are Client, Pool, etc.
+import { Pool } from "pg"; // there are Client, Pool, etc.
+import crypto from "crypto";
 import { engine } from "express-handlebars"; 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,6 +16,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const FALLBACK_IMAGE = "/assets/images/project-img.jpg"; //if no image imputed, is there but is nothing
 const projectImages = new Map();
+const sessions = new Map();
 
 // Database pool
 const pool = new Pool({
@@ -24,6 +26,53 @@ const pool = new Pool({
   database: process.env.PGDATABASE || "stage-1-65",
   port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
 });
+
+// changing string cookie http into javascrip object (example : "user=123"; theme=dark; session=abc" >>>>> { user: '123', theme: 'dark', session: 'abc' })
+function parseCookies(cookieHeader = "") {
+  return cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .reduce((acc, current) => {
+      const separatorIndex = current.indexOf("=");
+      if (separatorIndex === -1) return acc;
+      const key = current.slice(0, separatorIndex);
+      const value = current.slice(separatorIndex + 1);
+      acc[key] = decodeURIComponent(value);
+      return acc;
+    }, {});
+}
+
+// This function takes a plain-text password and generates a secure hash using a salt.
+// This is crucial for storing passwords securely, as it prevents storing them in plain text.
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, savedHash) {
+  if (!savedHash || !savedHash.includes(":")) return false;
+  const [salt, key] = savedHash.split(":");
+  const candidate = crypto.scryptSync(password, salt, 64).toString("hex");
+  if (candidate.length !== key.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(candidate, "hex"), Buffer.from(key, "hex"));
+}
+
+async function ensureUsersTable() {
+  // This asynchronous function ensures that the 'users' table exists in the PostgreSQL database.
+  // If the table does not exist, it creates it with the defined schema.
+  const createUsersTableQuery = `
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+  `;
+  // Query: Executes the SQL command to create the 'users' table if it doesn't already exist.
+  await pool.query(createUsersTableQuery);
+}
 
 // View engine & partials
 app.engine(
@@ -74,10 +123,142 @@ app.set("views", path.join(__dirname, "src", "views"));
 app.use("/assets", express.static(path.join(__dirname, "src", "assets")));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(express.json({ limit: "10mb" }));
+app.use(async (req, res, next) => {
+  try {
+    const cookies = parseCookies(req.headers.cookie || "");
+    const sid = cookies.sid;
+    if (sid && sessions.has(sid)) { // Check if session ID exists and is active
+      const session = sessions.get(sid);
+      const userResult = await pool.query("SELECT id, email FROM users WHERE id = $1", [session.userId]);
+      if (userResult.rows.length > 0) {
+        req.user = userResult.rows[0];
+        res.locals.currentUser = userResult.rows[0];
+      } else {
+        sessions.delete(sid); // If user not found, delete the invalid session
+      }
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Authenticated Middleware
+function requireAuth(req, res, next) {
+  if (!req.user) { // If user data is not present in the request (not authenticated)
+    return res.redirect("/login"); // Redirect to the login page
+  }
+  next(); 
+}
 
 // Simple health/logging route for debugging
 app.get("/_health", (req, res) => {
   res.json({ ok: true, node_env: process.env.NODE_ENV || "development" });
+});
+
+app.get("/", (req, res) => {
+  res.redirect("/home");
+});
+
+// registration page
+app.get("/register", (req, res) => {
+  if (req.user) return res.redirect("/myproject");
+  res.render("register", {
+    title: "Register",
+    active: "register",
+  });
+});
+
+// Handle user register submission
+app.post("/register", async (req, res) => {
+  try {
+    const { email = "", password = "" } = req.body;
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    if (!normalizedEmail || !password) {
+      return res.status(400).render("register", {
+        title: "Register",
+        active: "register",
+        error: "Email and password are required.",
+      });
+    }
+
+    // Query to check if a user with the given email already exists in the 'users' table.
+    // This prevents duplicate registrations.
+    const exists = await pool.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [normalizedEmail]);
+    if (exists.rows.length > 0) {
+      return res.status(400).render("register", {
+        title: "Register",
+        active: "register",
+        error: "Email is already registered.",
+      });
+    }
+
+    const passwordHash = hashPassword(password);
+    // Query to insert a new user into the 'users' table with their email and hashed password.
+    // This stores the new user's credentials securely in the database.
+    await pool.query(
+      "INSERT INTO users (email, password_hash) VALUES ($1, $2)",
+      [normalizedEmail, passwordHash],
+    );
+
+    res.redirect("/login"); // Redirect to login page after successful registration
+  } catch (err) {
+    console.error("POST /register error:", err);
+    res.status(500).send("Register failed");
+  }
+});
+
+// Login page
+app.get("/login", (req, res) => {
+  if (req.user) return res.redirect("/myproject"); // If already logged in, redirect to myproject
+  res.render("login", {
+    title: "Login",
+    active: "login",
+  });
+});
+
+// Handle user login submission
+app.post("/login", async (req, res) => {
+  try {
+    const { email = "", password = "" } = req.body;
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // Query to retrieve user id, email, and password hash from the 'users' table based on the provided email.
+    // This is used to verify the user's credentials during login.
+    const userResult = await pool.query(
+      "SELECT id, email, password_hash FROM users WHERE email = $1 LIMIT 1",
+      [normalizedEmail],
+    );
+
+     // If no user found or password doesn't match, return an error
+    if (userResult.rows.length === 0 || !verifyPassword(password, userResult.rows[0].password_hash)) {
+      return res.status(401).render("login", {
+        title: "Login",
+        active: "login",
+        error: "Invalid email or password.",
+      });
+    }
+
+    const sid = crypto.randomBytes(24).toString("hex"); // Generate a new session ID
+    sessions.set(sid, { userId: userResult.rows[0].id });
+    res.setHeader("Set-Cookie", `sid=${sid}; HttpOnly; Path=/; Max-Age=86400; SameSite=Lax`);
+    res.redirect("/myproject");
+  } catch (err) {
+    console.error("POST /login error:", err);
+    res.status(500).send("Login failed");
+  }
+});
+
+// Handle user logout
+app.post("/logout", (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const sid = cookies.sid;
+  if (sid) {
+    sessions.delete(sid);
+  }
+  res.setHeader("Set-Cookie", "sid=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax");
+  res.redirect("/login");
 });
 
 // Routes Index.hbs/Home
@@ -97,7 +278,7 @@ app.get("/contact", (req, res) => {
 });
 
 // take projects/data from database
-app.get("/myproject", async (req, res) => {
+app.get("/myproject", requireAuth, async (req, res) => {
   try {
     // query 
     const q = `
@@ -128,7 +309,7 @@ app.get("/myproject", async (req, res) => {
 });
 
 // POST (saving into DB) new project
-app.post("/myproject", async (req, res) => {
+app.post("/myproject", requireAuth, async (req, res) => {
   try {
     const { pname, pstart, pend, pdesc, tech = [], imageData = "" } = req.body;
     const client = await pool.connect();
@@ -187,7 +368,7 @@ app.post("/myproject", async (req, res) => {
 });
 
 // Route to display the edit project form
-app.get("/myproject/edit/:id", async (req, res) => {
+app.get("/myproject/edit/:id", requireAuth, async (req, res) => {
   try {
     //Edit Query
     const { id } = req.params; // Extract project ID from URL parameters
@@ -221,7 +402,7 @@ app.get("/myproject/edit/:id", async (req, res) => {
 });
 
 // Route to handle POST requests for updating an existing project
-app.post("/myproject/edit/:id", async (req, res) => {
+app.post("/myproject/edit/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { pname, pstart, pend, pdesc, tech = [], imageData = "" } = req.body;
@@ -289,7 +470,7 @@ app.post("/myproject/edit/:id", async (req, res) => {
 });
 
 // route dellete
-app.post("/myproject/delete/:id", async (req, res) => {
+app.post("/myproject/delete/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const client = await pool.connect();
@@ -314,7 +495,7 @@ app.post("/myproject/delete/:id", async (req, res) => {
 });
 
 // rout to project details
-app.get("/project-detail/:id", async (req, res) => {
+app.get("/project-detail/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const q = `
@@ -356,19 +537,29 @@ app.get("/project-detail/:id", async (req, res) => {
   }
 });
 
-app.get("/project-details/:id", (req, res) => {
+app.get("/project-details/:id", requireAuth, (req, res) => {
   res.redirect(`/project-detail/${req.params.id}`);
 });
 
-// Start server with additional error handling
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await ensureUsersTable();
 
-server.on("error", (err) => {
-  console.error("Server error:", err);
-  process.exit(1);
-});
+    const server = app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+
+    server.on("error", (err) => {
+      console.error("Server error:", err);
+      process.exit(1);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 //note :
 // npm install -g (global) nodemon is used to install as global, so not appears in dependencies

@@ -1,0 +1,32 @@
+{{> header}}
+<section class="bg-body-secondary py-5">
+  <div class="container py-4">
+    <div class="card shadow-sm border-0 mx-auto" style="max-width: 480px;">
+      <div class="card-body p-4 p-md-5">
+        <h3 class="fw-bold text-center mb-4">Login</h3>
+
+        {{#if error}}
+          <div class="alert alert-danger py-2">{{error}}</div>
+        {{/if}}
+
+        <form action="/login" method="POST">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Email</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Password</label>
+            <input type="password" name="password" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-dark w-100">Login</button>
+        </form>
+
+        <p class="text-center text-muted mt-3 mb-0">
+          No account?
+          <a href="/register" class="text-decoration-none">Register</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{{> footer}}
