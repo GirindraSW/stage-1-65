@@ -1,10 +1,9 @@
 (function () {
-  function bindImagePicker(fileInputId, hiddenInputId, fileNameId) {
+  function bindImagePicker(fileInputId, fileNameId) {
     const fileInput = document.getElementById(fileInputId);
-    const hiddenInput = document.getElementById(hiddenInputId);
     const fileNameEl = document.getElementById(fileNameId);
 
-    if (!fileInput || !hiddenInput || !fileNameEl) return;
+    if (!fileInput || !fileNameEl) return;
 
     fileInput.addEventListener("change", function () {
       const file = fileInput.files && fileInput.files[0];
@@ -14,14 +13,9 @@
       }
 
       fileNameEl.textContent = file.name;
-      const reader = new FileReader();
-      reader.onload = function (event) {
-        hiddenInput.value = String(event.target?.result || "");
-      };
-      reader.readAsDataURL(file);
     });
   }
 
-  bindImagePicker("inputImage", "imageData", "imageFileName");
-  bindImagePicker("inputImageEdit", "imageDataEdit", "imageFileNameEdit");
+  bindImagePicker("inputImage", "imageFileName");
+  bindImagePicker("inputImageEdit", "imageFileNameEdit");
 })();

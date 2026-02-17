@@ -7,6 +7,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { Pool } from "pg"; // there are Client, Pool, etc.
 import crypto from "crypto";
+import fs from "fs"; // have acces to read and edit
+import multer from "multer"; //processing upload file
 import { engine } from "express-handlebars"; 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,8 +17,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const FALLBACK_IMAGE = "/assets/images/project-img.jpg"; //if no image imputed, is there but is nothing
-const projectImages = new Map();
 const sessions = new Map();
+const uploadDir = path.join(__dirname, "src", "assets", "uploads");
 
 // Database pool
 const pool = new Pool({
@@ -73,6 +75,37 @@ async function ensureUsersTable() {
   // Query: Executes the SQL command to create the 'users' table if it doesn't already exist.
   await pool.query(createUsersTableQuery);
 }
+
+async function ensureProjectsTableColumns() {
+  await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS image TEXT");
+}
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (_req, _file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (_req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9-_]/g, "_");
+    cb(null, `${Date.now()}-${baseName}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: function (_req, file, cb) {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed"));
+    }
+  },
+});
 
 // View engine & partials
 app.engine(
@@ -294,7 +327,7 @@ app.get("/myproject", requireAuth, async (req, res) => {
     // if pool was fail or empty, fallback array is empty so it keeps rendering
     const projects = (result && result.rows ? result.rows : []).map((project) => ({
       ...project,
-      image: projectImages.get(project.id) || FALLBACK_IMAGE,
+      image: project.image || FALLBACK_IMAGE,
     }));
 
     res.render("myproject", {
@@ -309,21 +342,23 @@ app.get("/myproject", requireAuth, async (req, res) => {
 });
 
 // POST (saving into DB) new project
-app.post("/myproject", requireAuth, async (req, res) => {
+app.post("/myproject", requireAuth, upload.single("image"), async (req, res) => {
   try {
-    const { pname, pstart, pend, pdesc, tech = [], imageData = "" } = req.body;
+    const { pname, pstart, pend, pdesc, tech = [] } = req.body;
+    const imagePath = req.file ? `/assets/uploads/${req.file.filename}` : FALLBACK_IMAGE;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const insertProjectText = `
-        INSERT INTO projects (name, start_date, end_date, description, created_at)
-        VALUES ($1, $2, $3, $4, NOW()) RETURNING id;
+        INSERT INTO projects (name, start_date, end_date, description, image, created_at)
+        VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING id;
       `;
       const r = await client.query(insertProjectText, [
         pname,
         pstart || null,
         pend || null,
         pdesc || null,
+        imagePath,
       ]);
       const projectId = r.rows[0].id;
       const techs = (Array.isArray(tech) ? tech : [tech]).filter(Boolean);
@@ -349,11 +384,6 @@ app.post("/myproject", requireAuth, async (req, res) => {
         );
       }
       await client.query("COMMIT");
-
-      // If image data is provided
-      if (imageData && imageData.trim() !== "") {
-        projectImages.set(projectId, imageData.trim());
-      }
     } catch (e) {
       await client.query("ROLLBACK");
       throw e;
@@ -387,7 +417,7 @@ app.get("/myproject/edit/:id", requireAuth, async (req, res) => {
 
     const project = {
       ...result.rows[0],
-      image: projectImages.get(Number(id)) || FALLBACK_IMAGE,
+      image: result.rows[0].image || FALLBACK_IMAGE,
     };
 
     res.render("edit-project", {
@@ -402,10 +432,11 @@ app.get("/myproject/edit/:id", requireAuth, async (req, res) => {
 });
 
 // Route to handle POST requests for updating an existing project
-app.post("/myproject/edit/:id", requireAuth, async (req, res) => {
+app.post("/myproject/edit/:id", requireAuth, upload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    const { pname, pstart, pend, pdesc, tech = [], imageData = "" } = req.body;
+    const { pname, pstart, pend, pdesc, tech = [] } = req.body;
+    const imagePath = req.file ? `/assets/uploads/${req.file.filename}` : null;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -414,10 +445,10 @@ app.post("/myproject/edit/:id", requireAuth, async (req, res) => {
       await client.query(
         `
           UPDATE projects
-          SET name = $1, start_date = $2, end_date = $3, description = $4
-          WHERE id = $5
+          SET name = $1, start_date = $2, end_date = $3, description = $4, image = COALESCE($5, image)
+          WHERE id = $6
         `,
-        [pname, pstart || null, pend || null, pdesc || null, id],
+        [pname, pstart || null, pend || null, pdesc || null, imagePath, id],
       );
 
       // Query to delete
@@ -450,11 +481,6 @@ app.post("/myproject/edit/:id", requireAuth, async (req, res) => {
       }
 
       await client.query("COMMIT");
-
-      // If image data is provided, update it in the projectImages Map.
-      if (imageData && imageData.trim() !== "") {
-        projectImages.set(Number(id), imageData.trim());
-      }
     } catch (e) {
       await client.query("ROLLBACK"); // in case error
       throw e;
@@ -485,8 +511,6 @@ app.post("/myproject/delete/:id", requireAuth, async (req, res) => {
     } finally {
       client.release();
     }
-
-    projectImages.delete(Number(id));
     res.redirect("/myproject");
   } catch (err) {
     console.error("POST /myproject/delete/:id error:", err);
@@ -527,7 +551,7 @@ app.get("/project-detail/:id", requireAuth, async (req, res) => {
       active: "project",
       project: {
         ...project,
-        image: projectImages.get(Number(id)) || FALLBACK_IMAGE,
+        image: project.image || FALLBACK_IMAGE,
         durationText,
       },
     });
@@ -544,6 +568,7 @@ app.get("/project-details/:id", requireAuth, (req, res) => {
 async function startServer() {
   try {
     await ensureUsersTable();
+    await ensureProjectsTableColumns();
 
     const server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
@@ -560,6 +585,16 @@ async function startServer() {
 }
 
 startServer();
+
+app.use((err, _req, res, _next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).send(`Upload error: ${err.message}`);
+  }
+  if (err && err.message === "Only image files are allowed") {
+    return res.status(400).send(err.message);
+  }
+  return res.status(500).send("Server error");
+});
 
 //note :
 // npm install -g (global) nodemon is used to install as global, so not appears in dependencies
